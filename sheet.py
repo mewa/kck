@@ -30,38 +30,49 @@ def train(itrain=False):
     with open(sys.argv[2], "wb") as f:
         pickle.dump(sum / n, f)
 
-def hu_detect(moment, img):
-    HuThreshold = 0.05 # Hu Min Threshold (method 3)
+def hu_diff(mom1, mom2):
+    tmp1 = []
+    tmp2 = []
+    for i,_ in enumerate(mom1):
+        if mom1[i] != 0 and mom2[i] != 0:
+            tmp1.append(mom1[i])
+            tmp2.append(mom2[i])
+    mom1 = tmp1
+    mom2 = tmp2
+    mom1 = -np.sign(mom1) * np.log10(np.abs(mom1))
+    mom2 = -np.sign(mom2) * np.log10(np.abs(mom2))
+    
+    return np.max(np.abs((mom1 - mom2) / mom2))
 
+def hu_detect(moment, img, min_coverage=0.1, HuThreshold=2.5, invert=False, adaptive=True, dilation_level=2, dilation_kernel=(3, 3), max_coverage=1):
     original = img
 
     img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     img = cv2.GaussianBlur(img, (15, 15), 0)
 
     blurred = img
+    if invert:
+        flag = cv2.THRESH_BINARY_INV
+    else:
+        flag = cv2.THRESH_BINARY
+    ret, img = cv2.threshold(img, 0, 255, flag + cv2.THRESH_OTSU)
     
-    ret, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    img = cv2.morphologyEx(img, cv2.MORPH_DILATE, np.ones( dilation_kernel ), iterations = dilation_level)
 
-    b = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 15, 0)
-    
-    img = cv2.morphologyEx(img, cv2.MORPH_DILATE, np.ones( (3, 3) ), iterations = 2)
-    b = cv2.morphologyEx(b, cv2.MORPH_ERODE, np.ones( (3, 3) ), iterations = 2)
-    cv2.subtract(img, b, img)
+    if adaptive:
+        b = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 15, 0)
+        b = cv2.morphologyEx(b, cv2.MORPH_ERODE, np.ones( (3, 3) ), iterations = 2)
+        cv2.subtract(img, b, img)
 
     # show img as found before finding contours
+    plt.figure()
     plt.imshow(img)
 
-    mom = cv2.moments(img, binaryImage=True)
-
-    mom = cv2.HuMoments(mom).flatten()
-    #mom = -np.sign(mom) * np.log(mom)
-    print("contour moment:", mom)
-    
     # uncomment to save moments
     #with open("moments.txt", "wb") as f:
     #    pickle.dump(mom, f)
 
-    _, contours, _ = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    _, contours, _ = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
     moments = []
 
@@ -71,18 +82,14 @@ def hu_detect(moment, img):
         coverage = area / (img.shape[0] * img.shape[1])
         
         contour_moment = cv2.HuMoments(contour_moment).flatten()
-        #contour_moment = -np.sign(contour_moment) * np.log(contour_moment)
         
-        diff = abs(contour_moment - moment)
-
-        if coverage > 0.1:
-            match = cv2.matchShapes(np.ones((297, 210)), contour, 3, 0.0)
+        if coverage > min_coverage:
+            match = hu_diff(moment, contour_moment)#cv2.matchShapes(moment, contour, 3, 0.0)
             print("coverage", coverage)
             print("moment", contour_moment)
-            print("diff", diff)
-            print("----------")
+            print("-" * 15)
             print("match:", match)
-            print("----------")
+            print("-" * 15)
             
             xs = contour[:, 0, 0]
             ys = contour[:, 0, 1]
@@ -93,7 +100,10 @@ def hu_detect(moment, img):
             moments += (match, contour)
 
     print("moments:", moments[0::2])  
-
+    
+    if (len(moments) == 0):
+        plt.show()
+        exit(1)
     hu_val = np.argmin(moments[0::2])
 
     if moments[0::2][hu_val] < HuThreshold:
@@ -107,9 +117,17 @@ def hu_detect(moment, img):
         
         x, y, width, height = cv2.boundingRect(contour)
 
-        cv2.drawContours(original, contour, -1, (0, 255, 0), 20)
+        #cv2.drawContours(original, contour, -1, (0, 255, 0), 20)
+        mask = np.zeros((height, width, 3), dtype=np.uint8)
+        c = contour
+        c[:, 0, 0] -= x
+        c[:, 0, 1] -= y
+        cv2.fillPoly(mask, pts=[c], color=(255,255,255))
 
-        return original[y:y+height, x:x+width], (x, y, width, height)
+        cropped = original[y:y+height, x:x+width]
+        cropped = cv2.bitwise_and(cropped, mask)
+
+        return cropped, (x, y, width, height), contour
 
 def main():
     if "train" == sys.argv[1]:
@@ -124,17 +142,38 @@ def main():
     with open(sys.argv[2], "rb") as f:
         a4_moment = pickle.load(f)
 
+    with open(sys.argv[3], "rb") as f:
+        qr_moment = pickle.load(f)
+
     print("Reading", sys.argv[1])
     img = cv2.imread(sys.argv[1], 1)
     
-    print("a4_moment hu:", a4_moment)
-    qr_img, bounding_rect = hu_detect(a4_moment, img)
+    print("page_moment hu:", a4_moment)
+    print("qr_moment hu:", a4_moment)
+
+    original = img
+
+    img, bounding_rect, _ = hu_detect(a4_moment, img)
+
+    img, bounding_rect2, contour = hu_detect(qr_moment, img, HuThreshold=40, min_coverage=0.05, invert=True, adaptive=False, dilation_level=3, dilation_kernel=(9,9))
+
+    x, y, _, _ = bounding_rect
+    x2, y2, width, height = bounding_rect2
+
+    x += x2
+    y += y2
+
+    #original[y:y+height, x:x+width] = 0
+    contour[:, 0, 0] += x
+    contour[:, 0, 1] += y
+    cv2.fillPoly(original, pts=[contour], color=(0xec, 0x47, 0x7a))
 
     # process QR
+    # img now contains qr code
     #processQr(qr_code)
 
     plt.figure()
-    plt.imshow(qr_img)
+    plt.imshow(original)
     plt.show()
 
 if __name__ == "__main__":
