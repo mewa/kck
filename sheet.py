@@ -5,40 +5,37 @@ import numpy as np
 import math
 from matplotlib import pyplot as plt
 import pickle
+import skimage.io
 
 def processQr(contour):
     print("Processing Qr code")
 
-def moment_diff(mom1, mom2, method=2):
-    sum = 0
-    if method == 2:
-        selection_func = np.argmax
-    else:
-        selection_func = np.argmin
-    for a, b in zip(mom1, mom2):
-        if method == 1:
-            sum += abs(a + b)
+def train(itrain=False):
+    print("Training moments")
+    n = 0
+    for e in sys.argv[3::1]:
+        sum = 0
+        n += 1
+        if (itrain):
+            print("Reading", e)
+            e = cv2.imread(e, 0)
+            mom = cv2.moments(e)
+            mom = cv2.HuMoments(mom)
+        else:
+            with open(e, "rb") as f:
+                mom = pickle.load(f)
+                print("Loaded", mom)
+        sum += mom
+    print("New moment:", sum)
+    with open(sys.argv[2], "wb") as f:
+        pickle.dump(sum / n, f)
 
-        if method == 2:
-            sum += abs(1/a + 1/b)
+def hu_detect(moment, img):
+    HuThreshold = 0.05 # Hu Min Threshold (method 3)
 
-        if method == 3:
-            sum += abs((a + b) / a)
-    return (sum, selection_func)
-
-def main():
-    a4 = 0
-    with open('moments.txt', "rb") as f:
-        a4 = pickle.load(f)
-    
-    print("a4 hu:", a4)
-
-    HuThreshold = 15 # Hu Min Threshold (method 3)
-
-    print("Reading", sys.argv[1])
-    img = cv2.imread(sys.argv[1], 1)
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     original = img
+
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     img = cv2.GaussianBlur(img, (15, 15), 0)
 
     blurred = img
@@ -66,49 +63,78 @@ def main():
 
     _, contours, _ = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 
-    plt.figure()
-    plt.imshow(original, cmap=plt.cm.gray)
-
     moments = []
 
     for contour in contours:
-        xs = contour[:, 0, 0]
-        ys = contour[:, 0, 1]
-
-        mom2 = cv2.moments(contour, binaryImage=True)
-        area = mom2['m00']
+        contour_moment = cv2.moments(contour, binaryImage=True)
+        area = contour_moment['m00']
         coverage = area / (img.shape[0] * img.shape[1])
         
-        mom2 = cv2.HuMoments(mom2).flatten()
-        #mom2 = -np.sign(mom2) * np.log(mom2)
+        contour_moment = cv2.HuMoments(contour_moment).flatten()
+        #contour_moment = -np.sign(contour_moment) * np.log(contour_moment)
         
-        diff = abs(mom2 - a4)
+        diff = abs(contour_moment - moment)
 
         if coverage > 0.1:
+            match = cv2.matchShapes(np.ones((297, 210)), contour, 3, 0.0)
             print("coverage", coverage)
-            print("moment", mom2)
+            print("moment", contour_moment)
             print("diff", diff)
             print("----------")
-            match = moment_diff(a4, mom2, method=3)
-            print(match)
+            print("match:", match)
             print("----------")
             
+            xs = contour[:, 0, 0]
+            ys = contour[:, 0, 1]
+
+            #if match < HuThreshold:
+            #    plt.plot(xs, ys, linewidth=1.5)
+
             moments += (match, contour)
 
-    print("moments:", [a for a,b in moments[0::2]])  
+    print("moments:", moments[0::2])  
 
-    hu_val = moments[0][1]([a for a,b in moments[0::2]])
+    hu_val = np.argmin(moments[0::2])
 
-    if moments[0::2][hu_val][0] < HuThreshold:
+    if moments[0::2][hu_val] < HuThreshold:
         contour = moments[1::2][hu_val]
-        
-        xs = contour[:, 0, 0]
-        ys = contour[:, 0, 1]
 
-        # process QR
-        processQr(contour)
+        m = cv2.moments(contour, binaryImage=True)
+        m = cv2.HuMoments(m).flatten()
+
+        with open(sys.argv[1] + "moments.txt", "wb") as f:
+            pickle.dump(m, f)
         
-        plt.plot(xs, ys, linewidth=5, color='cyan')
+        x, y, width, height = cv2.boundingRect(contour)
+
+        cv2.drawContours(original, contour, -1, (0, 255, 0), 20)
+
+        return original[y:y+height, x:x+width], (x, y, width, height)
+
+def main():
+    if "train" == sys.argv[1]:
+        train()
+        print("Moments trained")
+        exit(0)
+    if "itrain" in sys.argv[1]:
+        train(True)
+        print("Moments image-trained")
+        exit(0)
+
+    with open(sys.argv[2], "rb") as f:
+        a4_moment = pickle.load(f)
+
+    print("Reading", sys.argv[1])
+    img = cv2.imread(sys.argv[1], 1)
+    
+    print("a4_moment hu:", a4_moment)
+    qr_img, bounding_rect = hu_detect(a4_moment, img)
+
+    # process QR
+    #processQr(qr_code)
+
+    plt.figure()
+    plt.imshow(qr_img)
     plt.show()
 
 if __name__ == "__main__":
