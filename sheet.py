@@ -1,4 +1,6 @@
-#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+
+from __future__ import unicode_literals
 import cv2
 import sys
 import numpy as np
@@ -28,7 +30,7 @@ def train(itrain=False):
         sum += mom
     print("New moment:", sum)
     with open(sys.argv[2], "wb") as f:
-        pickle.dump(sum / n, f)
+        pickle.dump(sum / n, f, protocol=2)
 
 def hu_diff(mom1, mom2):
     tmp1 = []
@@ -41,7 +43,7 @@ def hu_diff(mom1, mom2):
     mom2 = tmp2
     mom1 = -np.sign(mom1) * np.log10(np.abs(mom1))
     mom2 = -np.sign(mom2) * np.log10(np.abs(mom2))
-    
+
     return np.max(np.abs((mom1 - mom2) / mom2))
 
 def hu_detect(moment, img, min_coverage=0.1, HuThreshold=2.5, invert=False, adaptive=True, dilation_level=2, dilation_kernel=(3, 3), max_coverage=1):
@@ -56,7 +58,7 @@ def hu_detect(moment, img, min_coverage=0.1, HuThreshold=2.5, invert=False, adap
     else:
         flag = cv2.THRESH_BINARY
     ret, img = cv2.threshold(img, 0, 255, flag + cv2.THRESH_OTSU)
-    
+
     img = cv2.morphologyEx(img, cv2.MORPH_DILATE, np.ones( dilation_kernel ), iterations = dilation_level)
 
     if adaptive:
@@ -80,9 +82,9 @@ def hu_detect(moment, img, min_coverage=0.1, HuThreshold=2.5, invert=False, adap
         contour_moment = cv2.moments(contour, binaryImage=True)
         area = contour_moment['m00']
         coverage = area / (img.shape[0] * img.shape[1])
-        
+
         contour_moment = cv2.HuMoments(contour_moment).flatten()
-        
+
         if coverage > min_coverage:
             match = hu_diff(moment, contour_moment)#cv2.matchShapes(moment, contour, 3, 0.0)
             print("coverage", coverage)
@@ -90,7 +92,7 @@ def hu_detect(moment, img, min_coverage=0.1, HuThreshold=2.5, invert=False, adap
             print("-" * 15)
             print("match:", match)
             print("-" * 15)
-            
+
             xs = contour[:, 0, 0]
             ys = contour[:, 0, 1]
 
@@ -99,8 +101,8 @@ def hu_detect(moment, img, min_coverage=0.1, HuThreshold=2.5, invert=False, adap
 
             moments += (match, contour)
 
-    print("moments:", moments[0::2])  
-    
+    print("moments:", moments[0::2])
+
     if (len(moments) == 0):
         plt.show()
         exit(1)
@@ -114,7 +116,7 @@ def hu_detect(moment, img, min_coverage=0.1, HuThreshold=2.5, invert=False, adap
 
         with open(sys.argv[1] + "moments.txt", "wb") as f:
             pickle.dump(m, f)
-        
+
         x, y, width, height = cv2.boundingRect(contour)
 
         #cv2.drawContours(original, contour, -1, (0, 255, 0), 20)
@@ -147,7 +149,7 @@ def main():
 
     print("Reading", sys.argv[1])
     img = cv2.imread(sys.argv[1], 1)
-    
+
     print("page_moment hu:", a4_moment)
     print("qr_moment hu:", a4_moment)
 
