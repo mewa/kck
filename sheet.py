@@ -9,9 +9,6 @@ from matplotlib import pyplot as plt
 import pickle
 import skimage.io
 
-def processQr(contour):
-    print("Processing Qr code")
-
 def train(itrain=False):
     print("Training moments")
     n = 0
@@ -131,6 +128,12 @@ def hu_detect(moment, img, min_coverage=0.1, HuThreshold=2.5, invert=False, adap
 
         return cropped, (x, y, width, height), contour
 
+def draw_plot(image):
+    plt.figure()
+    plt.axis("off")
+    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    plt.show()
+
 def main():
     if "train" == sys.argv[1]:
         train()
@@ -159,25 +162,23 @@ def main():
     img = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones( (11, 11) ))
 
     img, bounding_rect2, contour = hu_detect(qr_moment, img, HuThreshold=40, min_coverage=0.05, invert=True, adaptive=False, dilation_level=3, dilation_kernel=(9,9))
-    
+
+    logo = cv2.imread('logo.png', -1)
+
     x, y, _, _ = bounding_rect
     x2, y2, width, height = bounding_rect2
 
-    x += x2
-    y += y2
+    x += int(x2*0.9)
+    y += int(y2*0.9)
+    coverage = (float(width*height) / float(logo.shape[0]*logo.shape[1]))*5
 
-    #original[y:y+height, x:x+width] = 0
-    contour[:, 0, 0] += x
-    contour[:, 0, 1] += y
-    cv2.fillPoly(original, pts=[contour], color=(0xec, 0x47, 0x7a))
+    logo = cv2.resize(logo, (int(coverage * logo.shape[1]), int(coverage * logo.shape[0])), interpolation = cv2.INTER_CUBIC)
 
-    # process QR
-    # img now contains qr code
-    #processQr(qr_code)
+    for c in range(0,3):
+        original[y:y+logo.shape[0], x:x+logo.shape[1], c] = logo[:,:,c] * (logo[:,:,3]/255.0) +  original[y:y+logo.shape[0], x:x+logo.shape[1], c] * (1.0 - logo[:,:,3]/255.0)
 
-    plt.figure()
-    plt.imshow(original)
-    plt.show()
+    draw_plot(original)
+
 
 if __name__ == "__main__":
     main()
