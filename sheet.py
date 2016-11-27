@@ -156,9 +156,10 @@ def main():
     original = img
 
     img, bounding_rect, _ = hu_detect(a4_moment, img)
+    img = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones( (11, 11) ))
 
     img, bounding_rect2, contour = hu_detect(qr_moment, img, HuThreshold=40, min_coverage=0.05, invert=True, adaptive=False, dilation_level=3, dilation_kernel=(9,9))
-
+    
     x, y, _, _ = bounding_rect
     x2, y2, width, height = bounding_rect2
 
