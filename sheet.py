@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import unicode_literals
 import cv2
 import sys
 import numpy as np
@@ -99,7 +98,8 @@ def hu_detect(moment, img, min_coverage=0.1, HuThreshold=2.5, invert=False, adap
             moments += (match, contour)
 
     print("moments:", moments[0::2])
-
+    plt.figure()
+    plt.imshow(img)
     if (len(moments) == 0):
         plt.show()
         exit(1)
@@ -127,6 +127,7 @@ def hu_detect(moment, img, min_coverage=0.1, HuThreshold=2.5, invert=False, adap
         cropped = cv2.bitwise_and(cropped, mask)
 
         return cropped, (x, y, width, height), contour
+    return original, (0, 0, original.shape[1], original.shape[0]), 0
 
 def draw_plot(image):
     plt.figure()
@@ -159,23 +160,28 @@ def main():
     original = img
 
     img, bounding_rect, _ = hu_detect(a4_moment, img)
-    img = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones( (11, 11) ))
+    img = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones( (13, 13) ))
 
-    img, bounding_rect2, contour = hu_detect(qr_moment, img, HuThreshold=40, min_coverage=0.05, invert=True, adaptive=False, dilation_level=3, dilation_kernel=(9,9))
+    img, bounding_rect2, contour = hu_detect(qr_moment, img, HuThreshold=40, min_coverage=0.025, max_coverage=1, invert=True, adaptive=False, dilation_level=3, dilation_kernel=(9,9))
 
     logo = cv2.imread('logo.png', -1)
 
     x, y, _, _ = bounding_rect
-    x2, y2, width, height = bounding_rect2
 
-    x += int(x2*0.9)
-    y += int(y2*0.9)
-    coverage = (float(width*height) / float(logo.shape[0]*logo.shape[1]))*5
+    #for c in range(0,3):
+    #original[y:y+logo.shape[0], x:x+logo.shape[1], c] = logo[:,:,c] * (logo[:,:,3]/255.0) +  original[y:y+logo.shape[0], x:x+logo.shape[1], c] * (1.0 - logo[:,:,3]/255.0)
 
-    logo = cv2.resize(logo, (int(coverage * logo.shape[1]), int(coverage * logo.shape[0])), interpolation = cv2.INTER_CUBIC)
+    if bounding_rect2 != None:
+        x2, y2, width, height = bounding_rect2
+        coverage = (float(width*height) / float(logo.shape[0]*logo.shape[1]))*5
+        logo = cv2.resize(logo, (int(coverage * logo.shape[1]), int(coverage * logo.shape[0])), interpolation = cv2.INTER_CUBIC)
+        x += x2
+        y += y2
 
-    for c in range(0,3):
-        original[y:y+logo.shape[0], x:x+logo.shape[1], c] = logo[:,:,c] * (logo[:,:,3]/255.0) +  original[y:y+logo.shape[0], x:x+logo.shape[1], c] * (1.0 - logo[:,:,3]/255.0)
+    #original[y:y+height, x:x+width] = 0
+    contour[:, 0, 0] += x
+    contour[:, 0, 1] += y
+    cv2.fillPoly(original, pts=[contour], color=(0xec, 0x47, 0x7a))
 
     draw_plot(original)
 
