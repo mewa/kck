@@ -135,7 +135,7 @@ def draw_plot(image):
     plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     plt.show()
 
-def main():
+def main(aaa):
     if "train" == sys.argv[1]:
         train()
         print("Moments trained")
@@ -153,12 +153,13 @@ def main():
 
     print("Reading", sys.argv[1])
     img = cv2.imread(sys.argv[1], 1)
-
+    img = aaa
+    cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     print("page_moment hu:", a4_moment)
     print("qr_moment hu:", a4_moment)
 
     original = img
-
+    
     img, bounding_rect, _ = hu_detect(a4_moment, img)
     img = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones( (13, 13) ))
 
@@ -187,4 +188,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    cap = cv2.VideoCapture(0)
+    while True:
+        ret, img = cap.read()
+        print("ret ", ret)
+        if ret:
+            main(img)
