@@ -167,12 +167,11 @@ def main(aaa):
 
     logo = cv2.imread('logo.png', -1)
 
-    x, y, _, _ = bounding_rect
-
     #for c in range(0,3):
     #original[y:y+logo.shape[0], x:x+logo.shape[1], c] = logo[:,:,c] * (logo[:,:,3]/255.0) +  original[y:y+logo.shape[0], x:x+logo.shape[1], c] * (1.0 - logo[:,:,3]/255.0)
 
     if bounding_rect2 != None:
+        x, y, _, _ = bounding_rect
         x2, y2, width, height = bounding_rect2
         coverage = (float(width*height) / float(logo.shape[0]*logo.shape[1]))*5
         logo = cv2.resize(logo, (int(coverage * logo.shape[1]), int(coverage * logo.shape[0])), interpolation = cv2.INTER_CUBIC)
