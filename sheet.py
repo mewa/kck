@@ -161,7 +161,7 @@ def main(aaa):
     original = img
     
     img, bounding_rect, _ = hu_detect(a4_moment, img)
-    img = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones( (13, 13) ))
+    img = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones( (9, 9) ))
 
     img, bounding_rect2, contour = hu_detect(qr_moment, img, HuThreshold=40, min_coverage=0.025, max_coverage=1, invert=True, adaptive=False, dilation_level=3, dilation_kernel=(9,9))
 
@@ -189,6 +189,7 @@ def main(aaa):
 
 if __name__ == "__main__":
     cap = cv2.VideoCapture(0)
+    print("open:", cap.isOpened())
     while True:
         ret, img = cap.read()
         print("ret ", ret)
