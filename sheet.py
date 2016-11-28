@@ -127,7 +127,7 @@ def hu_detect(moment, img, min_coverage=0.1, HuThreshold=2.5, invert=False, adap
         cropped = cv2.bitwise_and(cropped, mask)
 
         return cropped, (x, y, width, height), contour
-    return original, (0, 0, original.shape[1], original.shape[0]), 0
+    return original, (0, 0, original.shape[1], original.shape[0]), None
 
 def draw_plot(image):
     plt.figure()
@@ -161,7 +161,7 @@ def main(aaa):
     original = img
     
     img, bounding_rect, _ = hu_detect(a4_moment, img)
-    img = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones( (9, 9) ))
+    img = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones( (11, 11) ))
 
     img, bounding_rect2, contour = hu_detect(qr_moment, img, HuThreshold=40, min_coverage=0.025, max_coverage=1, invert=True, adaptive=False, dilation_level=3, dilation_kernel=(9,9))
 
@@ -180,9 +180,10 @@ def main(aaa):
         y += y2
 
     #original[y:y+height, x:x+width] = 0
-    contour[:, 0, 0] += x
-    contour[:, 0, 1] += y
-    cv2.fillPoly(original, pts=[contour], color=(0xec, 0x47, 0x7a))
+    if contour != None:
+        contour[:, 0, 0] += x
+        contour[:, 0, 1] += y
+        cv2.fillPoly(original, pts=[contour], color=(0xec, 0x47, 0x7a))
 
     draw_plot(original)
 
